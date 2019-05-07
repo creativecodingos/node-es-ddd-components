@@ -9,23 +9,16 @@ export type CustomErrorName = string
  */
 export type CustomErrorData = any
 
-export type NamedError<Name extends CustomErrorName> = Error & {
-  readonly name: Name
-}
-
-export type ErrorWithData<Data extends CustomErrorData> = Error & {
-  // tslint:disable readonly-keyword
-  data: Data
-  // tslint:enable
-}
-
 /**
  * An instance of a custom error type
  */
-export type CustomErrorInstance<
+export interface CustomErrorInstance<
   Name extends CustomErrorName,
   Data extends CustomErrorData
-> = NamedError<Name> & ErrorWithData<Data>
+> extends Error {
+  readonly name: Name
+  readonly data: Data
+}
 
 /**
  * An object describing a custom error type
@@ -34,6 +27,19 @@ export interface CustomErrorTypeDefinition<Name extends CustomErrorName> {
   /**
    * The name of the custom error type
    */
+  readonly name: Name
+}
+
+interface ErrorConstructor<Name extends CustomErrorName> {
+  (message?: string): CustomErrorInstance<Name, void>
+  readonly name: Name
+}
+
+interface ErrorWithPayloadConstructor<
+  Name extends CustomErrorName,
+  Data extends CustomErrorData
+> {
+  (message: string | undefined, data: Data): CustomErrorInstance<Name, Data>
   readonly name: Name
 }
 
@@ -46,11 +52,5 @@ export type CustomErrorTypeFactory<
   Name extends CustomErrorName,
   Data extends CustomErrorData
 > = Data extends void
-  ? {
-      (message?: string, data?: void): CustomErrorInstance<Name, void>
-      readonly name: Name
-    }
-  : {
-      (message: string | undefined, data: Data): CustomErrorInstance<Name, Data>
-      readonly name: Name
-    }
+  ? ErrorConstructor<Name>
+  : ErrorWithPayloadConstructor<Name, Data>

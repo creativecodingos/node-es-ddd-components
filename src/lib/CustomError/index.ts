@@ -12,34 +12,37 @@ export function CustomError<
 >(
   definition: CustomErrorTypeDefinition<Name>
 ): CustomErrorTypeFactory<Name, Data> {
+  // tslint:disable no-expression-statement
   try {
-    // tslint:disable no-expression-statement
     validateDefinition(definition)
-    // tslint:enable
   } catch (e) {
     throw new TypeError(e.message)
   }
+  // tslint:enable
 
   const { name: errorName } = definition
   const ErrorType = (message?: string, data?: Data) => {
     const error = new Error(message || errorName)
     return Object.defineProperties(error, {
       __factory: { value: ErrorType },
-      name: { value: errorName },
+      name: { enumerable: true, value: errorName },
       stack: {
+        enumerable: true,
         value:
           error.stack && parseErrorStack(errorName, error.stack.split('\n')),
       },
-      ...(data !== undefined ? { data: { value: data } } : {}),
+      ...(data !== undefined
+        ? { data: { enumerable: true, value: data } }
+        : {}),
     })
   }
 
   return Object.defineProperties(ErrorType, {
-    name: { value: errorName },
+    name: { enumerable: true, value: errorName },
     [Symbol.hasInstance]: {
       value: (e: any) => !!e && e.__factory && e.__factory === ErrorType,
     },
-  })
+  }) as CustomErrorTypeFactory<Name, Data>
 }
 
 export const parseErrorStack = (
