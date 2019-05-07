@@ -26,13 +26,13 @@ export function DomainEvent<
 >(
   definition: DomainEventTypeDefinition<Name, Payload, State>
 ): DomainEventTypeFactory<Name, Payload, State> {
+  // tslint:disable no-expression-statement
   try {
-    // tslint:disable no-expression-statement
     validateDefinition(definition)
-    // tslint:enable
   } catch (e) {
     throw BadDomainEventDefinition(e.message, { originalError: e })
   }
+  // tslint:enable
 
   const {
     name,
@@ -48,28 +48,17 @@ export function DomainEvent<
   function EventTypeFactory(
     payload: Readonly<Payload>
   ): DomainEventInstance<Name, Payload, State> {
-    const event = {}
-    // tslint:disable no-let
-    let serializedPayload = ''
-    // tslint:enable
+    const event: DomainEventInstance<Name, Payload, State> = {
+      name,
+      payload,
+
+      applyToState: (state: Readonly<State>): Readonly<State> =>
+        reducer(state, payload),
+      getSerializedPayload: () => serializePayload(payload),
+    }
+
     return Object.defineProperties(event, {
       __factory: { value: EventTypeFactory },
-      applyToState: {
-        value: (state: Readonly<State>): Readonly<State> =>
-          reducer(state, payload),
-      },
-      getSerializedPayload: {
-        value: () =>
-          serializedPayload ||
-          (() => {
-            // tslint:disable no-expression-statement
-            serializedPayload = serializePayload(payload)
-            // tslint:enable
-            return serializedPayload
-          })(),
-      },
-      name: { enumerable: true, value: name },
-      payload: { enumerable: true, value: payload },
     })
   }
 
@@ -83,7 +72,7 @@ export function DomainEvent<
     name: { value: name },
     [Symbol.hasInstance]: {
       value: (event: any) =>
-        isObject(event) && event.__factory === EventTypeFactory,
+        isObject(event) && (event as any).__factory === EventTypeFactory,
     },
   }) as DomainEventTypeFactory<Name, Payload, State>
 }

@@ -8,7 +8,7 @@ import TodoCompleted from './TodoCompleted'
 import TodoRectifiedAsUncompleted from './TodoRectifiedAsUncompleted'
 import TodoRemoved from './TodoRemoved'
 
-const events = tuple(
+export const events = tuple(
   ListClosed,
   ListCreated,
   ListNameChanged,
@@ -18,5 +18,4 @@ const events = tuple(
   TodoRemoved
 )
 
-export default events
 export type Event = typeof events[number]

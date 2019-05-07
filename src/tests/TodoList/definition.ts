@@ -1,8 +1,8 @@
 import { AggregateDefinition } from '../../lib'
 
-import commands, { Command } from './commands'
-import errors, { Error } from './errors'
-import events, { Event } from './events'
+import { Command, commands } from './commands'
+import { Error, errors } from './errors'
+import { Event, events } from './events'
 import queries, { Query } from './queries'
 import { initialState, TodoListState } from './state'
 

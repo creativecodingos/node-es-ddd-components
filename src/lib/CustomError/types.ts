@@ -34,8 +34,8 @@ export interface CustomErrorTypeDefinition<Name extends CustomErrorName> {
  * A factory to generate an instance of a custom error type
  * @param message The error message
  */
-interface ErrorConstructor<Name extends CustomErrorName> {
-  (message?: string): CustomErrorInstance<Name, void>
+export interface NamedErrorConstructor<Name extends CustomErrorName> {
+  (message?: string, data?: undefined): CustomErrorInstance<Name, void>
   readonly name: Name
 }
 
@@ -44,7 +44,7 @@ interface ErrorConstructor<Name extends CustomErrorName> {
  * @param message The error message
  * @param data A paylod which get exposed through `error.data`
  */
-interface ErrorWithPayloadConstructor<
+export interface NamedErrorWithPayloadConstructor<
   Name extends CustomErrorName,
   Data extends CustomErrorData
 > {
@@ -56,5 +56,5 @@ export type CustomErrorTypeFactory<
   Name extends CustomErrorName,
   Data extends CustomErrorData
 > = Data extends void
-  ? ErrorConstructor<Name>
-  : ErrorWithPayloadConstructor<Name, Data>
+  ? NamedErrorConstructor<Name>
+  : NamedErrorWithPayloadConstructor<Name, Data>

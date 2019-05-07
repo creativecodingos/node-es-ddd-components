@@ -1,7 +1,7 @@
 import 'jest'
 import { every, isString, isObject, range } from 'lodash'
 
-import { InMemoryEventStore, padLeftWithZeroes } from 'lib-export'
+import { InMemoryEventStore } from 'lib-export'
 
 const isSerializedDomainEvent = event =>
   isObject(event) && isString(event.name) && isString(event.payload)
@@ -11,7 +11,8 @@ const isPersistedDomainEvent = event =>
   isString(event.id) &&
   isString(event.correlationId) &&
   isObject(event.aggregate) &&
-  isString(event.aggregate.context)
+  isString(event.aggregate.context) &&
+  isString(event.aggregate.type)
 
 describe('An InMemoryEventStore instance `es`', () => {
   describe('es.appendEventsToAggregates(insertions: EventStoreInsertion[], correlationId: string)', () => {
@@ -32,25 +33,21 @@ describe('An InMemoryEventStore instance `es`', () => {
       ])
 
       // We now expect the wrong version
-      try {
-        await es.appendEventsToAggregates([
-          {
-            aggregate: {
-              context: 'C',
-              type: 'D',
-              identity: 'I',
-            },
-            eventsToAppend: [{ name: 'X', payload: '' }],
-            expectedAggregateVersion: 0,
+      let result = await es.appendEventsToAggregates([
+        {
+          aggregate: {
+            context: 'C',
+            type: 'D',
+            identity: 'I',
           },
-        ])
-        throw new Error('es.appendEventsToAggregates should fail')
-      } catch (e) {
-        expect(e.message).not.toBe('es.appendEventsToAggregates should fail')
-      }
+          eventsToAppend: [{ name: 'X', payload: '' }],
+          expectedAggregateVersion: 10,
+        },
+      ])
+      expect(result.isLeft()).toBe(true)
 
       // We correctly expect aggregate exists
-      await es.appendEventsToAggregates([
+      result = await es.appendEventsToAggregates([
         {
           aggregate: {
             context: 'C',
@@ -61,9 +58,10 @@ describe('An InMemoryEventStore instance `es`', () => {
           expectedAggregateVersion: -1,
         },
       ])
+      expect(result.isRight()).toBe(true)
 
       // We have no expectations
-      await es.appendEventsToAggregates([
+      result = await es.appendEventsToAggregates([
         {
           aggregate: {
             context: 'C',
@@ -74,26 +72,23 @@ describe('An InMemoryEventStore instance `es`', () => {
           expectedAggregateVersion: -2,
         },
       ])
+      expect(result.isRight()).toBe(true)
 
       // We expect the aggregate exists but it does not
-      try {
-        await es.appendEventsToAggregates([
-          {
-            aggregate: {
-              context: 'C',
-              type: 'Not Exists',
-              identity: undefined,
-            },
-            eventsToAppend: [{ name: 'X', payload: '' }],
-            expectedAggregateVersion: -1,
+      result = await es.appendEventsToAggregates([
+        {
+          aggregate: {
+            context: 'C',
+            type: 'Not Exists',
+            identity: undefined,
           },
-        ])
-        throw new Error('es.appendEventsToAggregates should fail')
-      } catch (e) {
-        expect(e.message).not.toBe('es.appendEventsToAggregates should fail')
-      }
+          eventsToAppend: [{ name: 'X', payload: '' }],
+          expectedAggregateVersion: -1,
+        },
+      ])
+      expect(result.isLeft()).toBe(true)
     })
-    it('rejects with an error decorated with .concurrency = true if there is a concurrency issue', async () => {
+    it('returns an error decorated with .type = "CONCURRENCY" if there is a concurrency issue', async () => {
       const es = InMemoryEventStore()
 
       // We correctly expect aggregate.version is 0
@@ -110,25 +105,21 @@ describe('An InMemoryEventStore instance `es`', () => {
       ])
 
       // We now expect the wrong version
-      try {
-        await es.appendEventsToAggregates([
-          {
-            aggregate: {
-              context: 'C',
-              type: 'D',
-              identity: 'I',
-            },
-            eventsToAppend: [{ name: 'X', payload: '' }],
-            expectedAggregateVersion: 0,
+      let result = await es.appendEventsToAggregates([
+        {
+          aggregate: {
+            context: 'C',
+            type: 'D',
+            identity: 'I',
           },
-        ])
-        throw new Error('es.appendEventsToAggregates should fail')
-      } catch (e) {
-        expect(e.message).not.toBe('es.appendEventsToAggregates should fail')
-        expect(e.concurrency).toBe(true)
-      }
+          eventsToAppend: [{ name: 'X', payload: '' }],
+          expectedAggregateVersion: 0,
+        },
+      ])
+      expect(result.isLeft()).toBe(true)
+      expect(result.value.type).toBe('CONCURRENCY')
     })
-    it('return the promise of a PersistedDomainEvent[] collection', async () => {
+    it('returns a "right" value wich is a PersistedDomainEvent[] collection', async () => {
       const es = InMemoryEventStore()
 
       const aggregateIndetifier1 = {
@@ -150,7 +141,9 @@ describe('An InMemoryEventStore instance `es`', () => {
         payload: `${idx}`,
       }))
 
-      const persistedDomainEvents = await es.appendEventsToAggregates([
+      const {
+        value: persistedDomainEvents,
+      } = await es.appendEventsToAggregates([
         {
           aggregate: aggregateIndetifier1,
           eventsToAppend: eventsToAppend1,
@@ -164,9 +157,7 @@ describe('An InMemoryEventStore instance `es`', () => {
       ])
 
       const allEventsToAppend = eventsToAppend1.concat(eventsToAppend2)
-      const expectedIds = allEventsToAppend.map((_, idx) =>
-        padLeftWithZeroes(`${idx + 1}`)
-      )
+      const expectedIds = allEventsToAppend.map((_, idx) => `${idx + 1}`)
 
       expect(every(persistedDomainEvents, isPersistedDomainEvent)).toBe(true)
       expect(persistedDomainEvents[4].aggregate).toEqual(aggregateIndetifier1)
@@ -196,7 +187,7 @@ describe('An InMemoryEventStore instance `es`', () => {
         },
       ])
 
-      const events = await es.getEventsOfAggregate(aggregate)
+      const { value: events } = await es.getEventsOfAggregate(aggregate)
 
       expect(every(events, isSerializedDomainEvent)).toBe(true)
       expect(events).toEqual(eventsToAppend)
@@ -221,10 +212,10 @@ describe('An InMemoryEventStore instance `es`', () => {
         },
       ])
 
-      const events = await es.getEventsOfAggregate(aggregate, 2)
+      const { value: events } = await es.getEventsOfAggregate(aggregate, 2)
       expect(events).toEqual(eventsToAppend.slice(2))
 
-      const emptyList = await es.getEventsOfAggregate(aggregate, 200)
+      const { value: emptyList } = await es.getEventsOfAggregate(aggregate, 200)
       expect(emptyList.length).toBe(0)
     })
   })

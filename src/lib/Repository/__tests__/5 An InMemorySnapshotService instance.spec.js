@@ -9,19 +9,20 @@ describe('An InMemorySnapshotService instance `mss`', () => {
     const snapshot = { serializedState: '{}', version: 100 }
     await mss.saveAggregateSnapshot(key, snapshot)
 
-    const loadedSnapshot = await mss.loadAggregateSnapshot(key)
-    expect(loadedSnapshot).toBe(snapshot)
+    const result = await mss.loadAggregateSnapshot(key)
+    expect(result.isRight()).toBe(true)
+    expect(result.value).toEqual(snapshot)
   })
   it('mss.loadAggregateSnapshot works as expected', async () => {
     const mss = InMemorySnapshotService()
     const key = `akey${Math.random()}`
-    const snapshot = await mss.loadAggregateSnapshot(key)
-    expect(snapshot).toBe(undefined)
+    const result = await mss.loadAggregateSnapshot(key)
+    expect(result.value).toBe(undefined)
 
     const newSnapshot = { serializedState: '{}', version: 100 }
     await mss.saveAggregateSnapshot(key, newSnapshot)
 
-    const reloadedSnapshot = await mss.loadAggregateSnapshot(key)
-    expect(reloadedSnapshot).toBe(newSnapshot)
+    const newResult = await mss.loadAggregateSnapshot(key)
+    expect(newResult.value).toEqual(newSnapshot)
   })
 })

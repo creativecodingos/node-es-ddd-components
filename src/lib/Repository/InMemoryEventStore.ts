@@ -29,7 +29,7 @@ export const InMemoryEventStore = (): EventStore => {
       )
       .map(({ name, payload }) => ({ name, payload }))
 
-  const getNewId = (): string => padLeftWithZeroes(`${events.length + 1}`)
+  const getNewId = (): string => `${events.length + 1}`
 
   return {
     appendEventsToAggregates: async (insertions, correlationId = '') => {
@@ -60,10 +60,9 @@ export const InMemoryEventStore = (): EventStore => {
         })
       } catch (error) {
         // tslint:disable-next-line:prefer-object-spread
-        return left(
-          {...error, 
-            type: 'CONCURRENCY'}
-        )
+        return /version/.test(error.message)
+          ? left(Object.defineProperty(error, 'type', { value: 'CONCURRENCY' }))
+          : left(error)
       }
 
       /**

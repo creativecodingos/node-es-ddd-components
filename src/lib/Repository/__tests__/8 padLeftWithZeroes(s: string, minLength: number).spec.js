@@ -15,4 +15,8 @@ describe('padLeftWithZeroes(s: string, minLength: number): string', () => {
     const s = 'hello'
     expect(padLeftWithZeroes(s, 10)).toBe('00000hello')
   })
+  it('minLenght defaults to 10', () => {
+    const pad10 = padLeftWithZeroes('')
+    expect(pad10.length).toBe(10)
+  })
 })

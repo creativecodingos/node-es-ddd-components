@@ -1,4 +1,5 @@
 import 'jest'
+import { left } from 'fp-ts/lib/Either'
 import { sample } from 'lodash'
 
 import {
@@ -7,8 +8,6 @@ import {
   InMemoryEventStore,
   InMemorySnapshotService,
   RepositoryBadAggregatesListProvided,
-  RepositoryEventsLoadError,
-  RepositorySnapshotLoadError,
 } from 'lib-export'
 
 import TodoList, { definition as todoListDefinition } from 'lib-tests/TodoList'
@@ -55,7 +54,16 @@ describe('Returned value', () => {
     expect(typeof ret.then).toBe('function')
     expect(typeof ret.catch).toBe('function')
   })
-  it('promised value is a list of rebuilt aggregate instances', async () => {
+  it('promised value is an Either', async () => {
+    const definition = getDefinition()
+    const repository = Repository(definition)
+    const todoList = TodoList('x')
+
+    const ret = await repository.load([todoList])
+    expect(typeof ret.isRight).toBe('function')
+    expect(typeof ret.isLeft).toBe('function')
+  })
+  it('"right" value is a list of rebuilt aggregate instances', async () => {
     const definition = getDefinition()
     const repository = Repository(definition)
     const todoListX = TodoList('x')
@@ -67,10 +75,9 @@ describe('Returned value', () => {
 
     await repository.persist([todoListX, todoListY])
 
-    const [loadedTodoListX, loadedTodoListY] = await repository.load([
-      todoListX,
-      todoListY,
-    ])
+    const either = await repository.load([todoListX, todoListY])
+
+    const [loadedTodoListX, loadedTodoListY] = either.value
 
     expect(toIdentity(loadedTodoListX)).toEqual(toIdentity(todoListX))
     expect(loadedTodoListX.version).toBe(2)
@@ -90,10 +97,9 @@ describe('Returned value', () => {
     const todoListX = TodoList('x')
     const todoListY = TodoList('y')
 
-    const [loadedTodoListX, loadedTodoListY] = await repository.load([
-      todoListX,
-      todoListY,
-    ])
+    const either = await repository.load([todoListX, todoListY])
+
+    const [loadedTodoListX, loadedTodoListY] = either.value
 
     expect(toIdentity(loadedTodoListX)).toEqual(toIdentity(todoListX))
     expect(toIdentity(loadedTodoListY)).toEqual(toIdentity(todoListY))
@@ -139,7 +145,9 @@ describe('Interaction with `snapshotService`', () => {
       snapshotThreshold: 2,
     })
     todoList = TodoList('x')
-    ;[todoList] = await repository.load([todoList])
+
+    const either = await repository.load([todoList])
+    ;[todoList] = either.value
 
     expect(spySaveAggregateSnapshot.mock.calls.length).toBe(1)
 
@@ -153,8 +161,8 @@ describe('Interaction with `snapshotService`', () => {
   })
 })
 
-describe('Behaviour in case of snpshotService.loadAggregateSnapshot() failure with `error`', () => {
-  it('DOES NOT FAIL if definition.loadCanFailBecauseOfSnaphotService is falsy', async () => {
+describe('Behaviour in case of snpshotService.loadAggregateSnapshot() failure', () => {
+  it("DOES NOT FAIL if repository's definition.loadCanFailBecauseOfSnaphotService is falsy", async () => {
     const falsyValues = [undefined, null, false, 0, NaN, '']
     const definition = {
       ...getDefinition(),
@@ -162,18 +170,16 @@ describe('Behaviour in case of snpshotService.loadAggregateSnapshot() failure wi
     }
     const spyLoadAggregateSnapshot = jest
       .spyOn(definition.snapshotService, 'loadAggregateSnapshot')
-      .mockImplementation(() => new Promise((_, reject) => reject(new Error())))
+      .mockImplementation(() => Promise.resolve(left(new Error())))
 
     const repository = Repository(definition)
     const todoList = TodoList('x')
 
-    await repository.load([todoList])
-
-    expect(spyLoadAggregateSnapshot.mock.calls.length).toBe(1)
+    const either = await repository.load([todoList])
+    expect(either.isRight()).toBe(true)
   })
-  it('FAILS with `RepositorySnapshotLoadError` if definition.loadCanFailBecauseOfSnaphotService is truthy. error.data.originalError === error', async () => {
+  it("FAILS if repository's definition.loadCanFailBecauseOfSnaphotService is truthy. Passes the error returned by the snapshotService", async () => {
     const definition = getDefinition()
-    const errorMessage = `repository.load() should reject`
     const truthyValues = [true, {}, [], 1, 'x', () => {}]
     const error = new Error()
 
@@ -181,19 +187,15 @@ describe('Behaviour in case of snpshotService.loadAggregateSnapshot() failure wi
       ...definition,
       snapshotService: {
         ...definition.snapshotService,
-        loadAggregateSnapshot: () => Promise.reject(error),
+        loadAggregateSnapshot: () => Promise.resolve(left(error)),
       },
       loadCanFailBecauseOfSnaphotService: sample(truthyValues),
     })
     const todoList = TodoList('x')
 
-    try {
-      await repository.load([todoList])
-      throw new Error(errorMessage)
-    } catch (e) {
-      expect(e instanceof RepositorySnapshotLoadError).toBe(true)
-      expect(e.data.originalError).toBe(error)
-    }
+    const result = await repository.load([todoList])
+    expect(result.isLeft()).toBe(true)
+    expect(result.value).toBe(error)
   })
 })
 
@@ -297,25 +299,21 @@ describe('Interaction with `eventStore`', () => {
   })
 })
 
-describe('Behaviour in case of eventStore.getEventsOfAggregate() failure with `error`', () => {
-  it('FAILS with `RepositoryEventsLoadError`. error.data.originalError === error', async () => {
+describe('Behaviour in case of eventStore.getEventsOfAggregate() failure', () => {
+  it('FAILS. Passes the error returned by the eventStore', async () => {
     const definition = getDefinition()
     const error = new Error()
     const repository = Repository({
       ...definition,
       eventStore: {
         ...definition.eventStore,
-        getEventsOfAggregate: () => Promise.reject(error),
+        getEventsOfAggregate: () => Promise.resolve(left(error)),
       },
     })
     const todoList = TodoList('x')
 
-    try {
-      await repository.load([todoList])
-      throw new Error('repository.load() should reject')
-    } catch (e) {
-      expect(e instanceof RepositoryEventsLoadError).toBe(true)
-      expect(e.data.originalError).toBe(error)
-    }
+    const result = await repository.load([todoList])
+    expect(result.isLeft()).toBe(true)
+    expect(result.value).toBe(error)
   })
 })

@@ -131,23 +131,27 @@ const isValidDomainEventConstructor = (ctor: any): boolean => {
 const isValidAggregateCommand = (command: any): boolean => {
   return (
     isObject(command) &&
-    isValidName(command.name) &&
-    (isNil(command.description) || isString(command.description)) &&
-    Array.isArray(command.emittableEvents) &&
-    Array.isArray(command.raisableErrors) &&
-    every(command.emittableEvents, isValidName) &&
-    every(command.raisableErrors, isValidName) &&
-    uniq(command.emittableEvents).length === command.emittableEvents.length &&
-    uniq(command.raisableErrors).length === command.raisableErrors.length &&
-    typeof command.handler === 'function'
+    isValidName((command as any).name) &&
+    (isNil((command as any).description) ||
+      isString((command as any).description)) &&
+    Array.isArray((command as any).emittableEvents) &&
+    Array.isArray((command as any).raisableErrors) &&
+    every((command as any).emittableEvents, isValidName) &&
+    every((command as any).raisableErrors, isValidName) &&
+    uniq((command as any).emittableEvents).length ===
+      (command as any).emittableEvents.length &&
+    uniq((command as any).raisableErrors).length ===
+      (command as any).raisableErrors.length &&
+    typeof (command as any).handler === 'function'
   )
 }
 
 const isValidAggregateQuery = (query: any): boolean => {
   return (
     isObject(query) &&
-    isValidName(query.name) &&
-    (isNil(query.description) || isString(query.description)) &&
-    typeof query.handler === 'function'
+    isValidName((query as any).name) &&
+    (isNil((query as any).description) ||
+      isString((query as any).description)) &&
+    typeof (query as any).handler === 'function'
   )
 }

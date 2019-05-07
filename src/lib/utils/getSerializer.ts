@@ -1,10 +1,9 @@
 import { CustomError } from '../CustomError'
 
-interface ErrorData {
-  readonly originalError: Error
-}
-
-export const SerializationError = CustomError<'SerializationError', ErrorData>({
+export const SerializationError = CustomError<
+  'SerializationError',
+  { readonly originalError: Error }
+>({
   name: 'SerializationError',
 })
 

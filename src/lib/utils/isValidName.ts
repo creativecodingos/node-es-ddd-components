@@ -1,6 +1,6 @@
 import { isString } from 'lodash'
 
-export function isValidName(x: any): boolean {
+export function isValidName(x: any): x is string {
   return isString(x) && /^[a-zA-Z]\w*$/.test(x)
 }
 

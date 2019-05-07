@@ -1,4 +1,5 @@
 import 'jest'
+import { left, right } from 'fp-ts/lib/Either'
 import { noop, pick } from 'lodash'
 
 import {
@@ -47,7 +48,27 @@ describe('Throwing cases', () => {
 })
 
 describe('Returned value', () => {
-  it('is a promise of a `result` object with `.aggregates` and `.persistedEvents` keys', async () => {
+  it('is a promise', () => {
+    const definition = getDefinition()
+    const repository = Repository(definition)
+    const todoList = TodoList('x')
+    todoList.execute.CreateList({ identity: 'x', name: 'A list' })
+
+    const result = repository.persist([todoList])
+    expect(typeof result.then).toBe('function')
+    expect(typeof result.catch).toBe('function')
+  })
+  it('promised value is an Either', async () => {
+    const definition = getDefinition()
+    const repository = Repository(definition)
+    const todoList = TodoList('x')
+    todoList.execute.CreateList({ identity: 'x', name: 'A list' })
+
+    const result = await repository.persist([todoList])
+    expect(typeof result.isRight).toBe('function')
+    expect(typeof result.isLeft).toBe('function')
+  })
+  it('"right" value is an object with `.aggregates` and `.persistedEvents` keys', async () => {
     const definition = getDefinition()
     const repository = Repository(definition)
 
@@ -55,59 +76,40 @@ describe('Returned value', () => {
     todoList.execute.CreateList({ identity: 'x', name: 'A list' })
 
     const result = await repository.persist([todoList])
-    expect(Object.keys(result)).toEqual(['aggregates', 'persistedEvents'])
+    expect(Object.keys(result.value)).toEqual(['aggregates', 'persistedEvents'])
   })
-  it('result.aggregates is a list of reloaded instances. The order of entities is preserved', async () => {
+  it('`.aggregates` is a list of reloaded instances. The order of entities is preserved', async () => {
     const definition = getDefinition()
     const repository = Repository(definition)
 
     const result = await repository.persist([TodoList('x'), TodoList('y')])
-    const [todoListX, todoListY] = result.aggregates
+    const [todoListX, todoListY] = result.value.aggregates
     expect(todoListX instanceof TodoList).toBe(true)
     expect(todoListX.identity).toBe('x')
     expect(todoListY instanceof TodoList).toBe(true)
     expect(todoListY.identity).toBe('y')
   })
-  it('result.persistedEvents is the value promised by the call to eventStore.appendEventsToAggregates()', async () => {
+  it('`.persistedEvents` is the value returned by the call to eventStore.appendEventsToAggregates()', async () => {
     const definition = getDefinition()
     const repository = Repository(definition)
 
     const list = []
     jest
       .spyOn(definition.eventStore, 'appendEventsToAggregates')
-      .mockImplementation(() => Promise.resolve(list))
+      .mockImplementation(() => Promise.resolve(right(list)))
 
     const todoList = TodoList('x')
     todoList.execute.CreateList({ identity: 'x', name: 'A list' })
 
     const result = await repository.persist([todoList])
 
-    expect(result.persistedEvents).toBe(list)
+    expect(result.value.persistedEvents).toBe(list)
   })
 })
 
 describe('Interaction with `eventStore`', () => {
-  describe('The call to eventStore.appendEventsToAggregates(insertions: EventStoreInsertion[], corrId: string)', () => {
-    it('happens if there is at least one dirty aggregate to persist', async () => {
-      const definition = getDefinition()
-      const spyAppendEventsToAggregates = jest.spyOn(
-        definition.eventStore,
-        'appendEventsToAggregates'
-      )
-
-      const repository = Repository(definition)
-
-      await repository.persist([])
-
-      await repository.persist([TodoList('A')])
-
-      const todoList = TodoList('A')
-      todoList.execute.CreateList({ identity: 'A', name: 'A list' })
-      await repository.persist([todoList])
-
-      expect(spyAppendEventsToAggregates).toHaveBeenCalledTimes(1)
-    })
-    it('the length of the insertions list is equal to the number of dirty aggregates', async () => {
+  describe('The call to eventStore.appendEventsToAggregates(insertions: EventStoreInsertion[], correlationId: string)', () => {
+    it('the length of the insertions list is equal to the number of aggregates, even if they are not dirty', async () => {
       const definition = getDefinition()
       const spyAppendEventsToAggregates = jest.spyOn(
         definition.eventStore,
@@ -119,12 +121,12 @@ describe('Interaction with `eventStore`', () => {
       todoList.execute.CreateList({ identity: 'A', name: 'A list' })
 
       const cleanAggregate = TodoList('y')
-      await repository.persist([todoList, cleanAggregate]) // Calls eventStore.appendEventsToAggregates passing one insertion
+      await repository.persist([todoList, cleanAggregate])
 
       const insertions = spyAppendEventsToAggregates.mock.calls[0][0]
-      expect(insertions.length).toBe(1)
+      expect(insertions.length).toBe(2)
     })
-    it('corrId === correlationId || ``', async () => {
+    it('correlationId is passed', async () => {
       const definition = getDefinition()
       const spyAppendEventsToAggregates = jest.spyOn(
         definition.eventStore,
@@ -135,10 +137,11 @@ describe('Interaction with `eventStore`', () => {
       const todoList = TodoList('x')
       todoList.execute.CreateList({ identity: 'A', name: 'A list' })
 
-      const {
-        aggregates: [list],
-      } = await repository.persist([todoList], 'a correlation')
-
+      const firstPersistenceResult = await repository.persist(
+        [todoList],
+        'a correlation'
+      )
+      const [list] = firstPersistenceResult.value.aggregates
       list.execute.ChangeListName({ name: 'Another' })
       await repository.persist([list])
 
@@ -160,8 +163,6 @@ describe('Interaction with `eventStore`', () => {
         const todoList = TodoList('A')
         todoList.execute.CreateList({ identity: 'A', name: 'A list' })
 
-        const todoListClean = TodoList('B')
-
         const TodoListSingleton = Aggregate({
           ...todoListDefinition,
           singleton: true,
@@ -172,7 +173,7 @@ describe('Interaction with `eventStore`', () => {
           name: 'A list',
         })
 
-        await repository.persist([todoList, todoListClean, todoListSingleton])
+        await repository.persist([todoList, todoListSingleton])
 
         const insertions = spyAppendEventsToAggregates.mock.calls[0][0]
 
@@ -331,52 +332,22 @@ describe('Interaction with `eventStore`', () => {
   })
 })
 
-describe('Behaviour in case of eventStore.appendEventsToAggregates() failure with `error`', () => {
-  it('fails with `RepositoryWriteError` exposing the eventStore error at error.data.originalError', async () => {
+describe('Behaviour in case of eventStore.appendEventsToAggregates() failure', () => {
+  it('FAILS. The eventStore error is passed', async () => {
     const definition = getDefinition()
-    const error = new Error(`${Math.random()}`)
+    const error = new Error()
     jest
       .spyOn(definition.eventStore, 'appendEventsToAggregates')
-      .mockImplementation(() => Promise.reject(error))
+      .mockImplementation(() => Promise.resolve(left(error)))
 
     const repository = Repository(definition)
     const todoList = TodoList('A')
     todoList.execute.CreateList({ identity: 'A', name: 'A list' })
 
-    try {
-      await repository.persist([todoList])
-      throw new Error(
-        'repository.persist() should fail with `RepositoryWriteError`'
-      )
-    } catch (e) {
-      expect(e instanceof RepositoryWriteError).toBe(true)
-      expect(e.message).toBe(error.message)
-      expect(e.data.originalError).toBe(error)
-    }
-  })
-  it('if error.concurrency === true fails with `RepositoryWriteConcurrencyError` exposing the eventStore error at error.data.originalError', async () => {
-    const definition = getDefinition()
-    const error = new Error(`${Math.random()}`)
-    error.concurrency = true
+    const result = await repository.persist([todoList])
 
-    jest
-      .spyOn(definition.eventStore, 'appendEventsToAggregates')
-      .mockImplementation(() => Promise.reject(error))
-
-    const repository = Repository(definition)
-    const todoList = TodoList('A')
-    todoList.execute.CreateList({ identity: 'A', name: 'A list' })
-
-    try {
-      await repository.persist([todoList])
-      throw new Error(
-        'repository.persist() should fail with `RepositoryWriteError`'
-      )
-    } catch (e) {
-      expect(e instanceof RepositoryWriteConcurrencyError).toBe(true)
-      expect(e.message).toBe(error.message)
-      expect(e.data.originalError).toBe(error)
-    }
+    expect(result.isLeft()).toBe(true)
+    expect(result.value).toBe(error)
   })
 })
 
@@ -386,13 +357,15 @@ describe('Behaviour in case of eventStore.getEventsOfAggregate() failure with `e
     const error = new Error()
     jest
       .spyOn(definition.eventStore, 'getEventsOfAggregate')
-      .mockImplementation(() => Promise.reject(error))
+      .mockImplementation(() => Promise.resolve(left(error)))
 
     const repository = Repository(definition)
     const todoList = TodoList('A')
     todoList.execute.CreateList({ identity: 'A', name: 'A list' })
 
     const result = await repository.persist([todoList])
-    expect(result.aggregates).toBe(undefined)
+    expect(result.isRight()).toBe(true)
+    expect(result.value.aggregates).toBe(undefined)
+    expect(result.value.persistedEvents.length > 0).toBe(true)
   })
 })

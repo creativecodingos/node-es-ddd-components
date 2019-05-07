@@ -8,7 +8,7 @@ import TheListDoesNotExist from './TheListDoesNotExist'
 import TheTodoAlreadyExists from './TheTodoAlreadyExists'
 import TheTodoDoesNotExist from './TheTodoDoesNotExist'
 
-const errors = tuple(
+export const errors = tuple(
   AListWithUndoneTodosCannotBeClosed,
   ATodoCannotBeAddedToAClosedList,
   ATodoCannotBeRemovedFromAClosedList,
@@ -18,5 +18,4 @@ const errors = tuple(
   TheTodoDoesNotExist
 )
 
-export default errors
 export type Error = typeof errors[number]

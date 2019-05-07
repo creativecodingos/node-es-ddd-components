@@ -8,7 +8,7 @@ import MarkTodoAsDone from './MarkTodoAsDone'
 import MarkTodoAsUndone from './MarkTodoAsUndone'
 import RemoveTodo from './RemoveTodo'
 
-const commands = tuple(
+export const commands = tuple(
   AddTodo,
   ChangeListName,
   CloseList,
@@ -18,5 +18,4 @@ const commands = tuple(
   RemoveTodo
 )
 
-export default commands
 export type Command = typeof commands[number]

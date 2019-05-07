@@ -41,9 +41,9 @@ export function isValidIdentity(str: any): boolean {
 export function isValidSnapshot(snapshot: any): boolean {
   return (
     isObject(snapshot) &&
-    isInteger(snapshot.version) &&
-    snapshot.version > 0 &&
-    isString(snapshot.serializedState)
+    isInteger((snapshot as any).version) &&
+    (snapshot as any).version > 0 &&
+    isString((snapshot as any).serializedState)
   )
 }
 
@@ -57,5 +57,9 @@ export function areAllValidSerializedDomainEvents(
 }
 
 export function isValidSerializedDomainEvent(event: any): boolean {
-  return isObject(event) && isValidName(event.name) && isString(event.payload)
+  return (
+    isObject(event) &&
+    isValidName((event as any).name) &&
+    isString((event as any).payload)
+  )
 }
